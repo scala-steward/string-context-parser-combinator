@@ -97,9 +97,9 @@ object MacroImpl {
 	}
 
 	import scala.language.higherKinds
-	def myLiftFunction[Z, Lifter[A] <: Lift[A, Z]](c:Context):LiftFunction[c.type, Lifter, Z] = {
-		new LiftFunction[c.type, Lifter, Z] {
-			def apply[A](lifter:c.Expr[Lifter[A]], a:c.Expr[A]):c.Expr[Z] = {
+	def myLiftFunction[Z, Lifter[A] <: Lift[A, Z]]:LiftFunction[Lifter, Z] = {
+		new LiftFunction[Lifter, Z] {
+			def apply[A](c:Context)(lifter:c.Expr[Lifter[A]], a:c.Expr[A]):c.Expr[Z] = {
 				c.Expr(
 					c.universe.Apply(
 						c.universe.Select(

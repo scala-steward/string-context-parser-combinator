@@ -2,6 +2,7 @@ package com.rayrobdod.stringContextParserCombinatorExample.uri
 
 import java.net.URI
 import com.rayrobdod.stringContextParserCombinator._
+import com.rayrobdod.stringContextParserCombinator.Parsers._
 import com.rayrobdod.stringContextParserCombinator.MacroCompat.Context
 
 object MacroImpl {
@@ -44,49 +45,47 @@ object MacroImpl {
 	}
 
 	def stringContext_uri(c:Context {type PrefixType = UriStringContext})(args:c.Expr[Any]*):c.Expr[URI] = {
-		object ParserPieces extends Parsers{
-			val ctx:c.type = c
-
+		object ParserPieces {
 			val constExpr:Function1[String, c.Expr[String]] = {x => c.Expr(c.universe.Literal(c.universe.Constant(x)))}
 			val constNullExpr:c.Expr[Null] = c.Expr(c.universe.Literal(c.universe.Constant(null)))
 			val constNegOneExpr:c.Expr[Int] = c.Expr(c.universe.Literal(c.universe.Constant(-1)))
 			def parseByteHex(x:(Char, Char)):Int = java.lang.Integer.parseInt(s"${x._1}${x._2}", 16)
 
 
-			implicit object AndThenCodepointString extends Implicits.AndThenTypes[CodePoint, String, String] {
+			implicit object AndThenCodepointString extends Implicits.AndThenTypes[ContextTypes[CodePoint]#Ident, ContextTypes[String]#Ident, ContextTypes[String]#Ident] {
 				def aggregate(a:CodePoint, b:String):String = s"${a}${b}"
 			}
-			implicit object AndThenStringCodepoint extends Implicits.AndThenTypes[String, CodePoint, String] {
+			implicit object AndThenStringCodepoint extends Implicits.AndThenTypes[ContextTypes[String]#Ident, ContextTypes[CodePoint]#Ident, ContextTypes[String]#Ident] {
 				def aggregate(a:String, b:CodePoint):String = s"${a}${b}"
 			}
-			implicit object AndThenStringString extends Implicits.AndThenTypes[String, String, String] {
+			implicit object AndThenStringString extends Implicits.AndThenTypes[ContextTypes[String]#Ident, ContextTypes[String]#Ident, ContextTypes[String]#Ident] {
 				def aggregate(a:String, b:String):String = s"${a}${b}"
 			}
-			implicit object EmptyStringOptionallyTypes extends Implicits.OptionallyTypes[String, String] {
+			implicit object EmptyStringOptionallyTypes extends Implicits.OptionallyTypes[ContextTypes[String]#Ident, ContextTypes[String]#Ident] {
 				def none():String = ""
 				def some(elem:String):String = elem
 			}
-			implicit object CodePointOptionallyTypes extends Implicits.OptionallyTypes[CodePoint, String] {
+			implicit object CodePointOptionallyTypes extends Implicits.OptionallyTypes[ContextTypes[CodePoint]#Ident, ContextTypes[String]#Ident] {
 				def none():String = ""
 				def some(elem:CodePoint):String = elem.toString
 			}
-			implicit object StringRepeatTypes extends Implicits.RepeatTypes[String, String] {
+			implicit object StringRepeatTypes extends Implicits.RepeatTypes[ContextTypes[String]#Ident, ContextTypes[String]#Ident] {
 				type Acc = StringBuilder
 				def init():Acc = new StringBuilder
 				def append(acc:Acc, elem:String):Unit = {acc ++= elem}
 				def result(acc:Acc):String = acc.toString
 			}
 
-			val HexChar:Parser[Char] = CharWhere(c => '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F', "HexChar")
+			val HexChar:Parser[ContextTypes[Char]#Ident] = CharWhere(c => '0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F', "HexChar")
 
-			val AlphaChar:Parser[CodePoint] = CodePointWhere(c => 'a' <= c.value && c.value <= 'z' || 'A' <= c.value && c.value <= 'Z', "AlphaChar")
-			val DigitChar:Parser[CodePoint] = CodePointWhere(c => '0' <= c.value && c.value <= '9', "DigitChar")
-			val AlphaNumChar:Parser[CodePoint] = AlphaChar orElse DigitChar
-			val UnreservedChar:Parser[CodePoint] = AlphaNumChar orElse CodePointIn("-_.!~*'()")
+			val AlphaChar:Parser[ContextTypes[CodePoint]#Ident] = CodePointWhere(c => 'a' <= c.value && c.value <= 'z' || 'A' <= c.value && c.value <= 'Z', "AlphaChar")
+			val DigitChar:Parser[ContextTypes[CodePoint]#Ident] = CodePointWhere(c => '0' <= c.value && c.value <= '9', "DigitChar")
+			val AlphaNumChar:Parser[ContextTypes[CodePoint]#Ident] = AlphaChar orElse[ContextTypes[CodePoint]#Ident] DigitChar
+			val UnreservedChar:Parser[ContextTypes[CodePoint]#Ident] = AlphaNumChar orElse[ContextTypes[CodePoint]#Ident] CodePointIn("-_.!~*'()")
 
-			val EscapedChar:Parser[CodePoint] = {
-				implicit object Utf8ContinuationAndThen extends Implicits.AndThenTypes[Int, Int, Int] {def aggregate(a:Int, b:Int):Int = a << 6 | b}
-				val EscapedContinuation:Parser[Int] = (IsString("%") andThen CharIn("89ABab") andThen HexChar).map({x => (parseByteHex(x) & 0x3F)})
+			val EscapedChar = {
+				implicit object Utf8ContinuationAndThen extends Implicits.AndThenTypes[ContextTypes[Int]#Ident, ContextTypes[Int]#Ident, ContextTypes[Int]#Ident] {def aggregate(a:Int, b:Int):Int = a << 6 | b}
+				val EscapedContinuation = (IsString("%") andThen CharIn("89ABab") andThen HexChar).map({x => (parseByteHex(x) & 0x3F)})
 
 				(IsString("%") andThen (
 					(CharIn("01234567") andThen HexChar).map({x => CodePoint(parseByteHex(x))}) orElse
@@ -96,25 +95,25 @@ object MacroImpl {
 				))
 			}
 
-			val UriNoSlashChar:Parser[CodePoint] = EscapedChar orElse UnreservedChar orElse CodePointIn(";?:@&=+$,")
-			val UriChar:Parser[CodePoint] = UriNoSlashChar orElse CodePointIn("/")
+			val UriNoSlashChar:Parser[ContextTypes[CodePoint]#Ident] = EscapedChar orElse UnreservedChar orElse CodePointIn(";?:@&=+$,")
+			val UriChar:Parser[ContextTypes[CodePoint]#Ident] = UriNoSlashChar orElse CodePointIn("/")
 
-			val SchemeP:Parser[c.Expr[String]] = {
-				val Literal:Parser[c.Expr[String]] = (AlphaChar andThen (AlphaNumChar orElse CodePointIn("+-.")).repeat()).map(constExpr)
+			val SchemeP:Parser[ContextTypes[String]#Expr] = {
+				val Literal:Parser[ContextTypes[String]#Expr] = (AlphaChar andThen (AlphaNumChar orElse CodePointIn("+-.")).repeat()).map(constExpr)
 				Literal
 			}
 
-			val UserInfoP:Parser[c.Expr[String]] = {
-				val Literal:Parser[c.Expr[String]] = (UnreservedChar orElse EscapedChar orElse CodePointIn(";:&=+$,")).repeat().map(constExpr)
+			val UserInfoP:Parser[ContextTypes[String]#Expr] = {
+				val Literal:Parser[ContextTypes[String]#Expr] = (UnreservedChar orElse EscapedChar orElse CodePointIn(";:&=+$,")).repeat().map(constExpr)
 				Literal
 			}
 
-			val HostP:Parser[c.Expr[String]] = {
-				val label:Parser[String] = AlphaNumChar andThen ((AlphaNumChar orElse CodePointIn("-")).repeat() andThen AlphaNumChar).optionally
-				val topLabel:Parser[String] = AlphaChar andThen ((AlphaNumChar orElse CodePointIn("-")).repeat() andThen AlphaNumChar).optionally
-				val LiteralName:Parser[c.Expr[String]] = ((label andThen CodePointIn(".")).repeat() andThen topLabel).map(constExpr)
-				val LiteralIpv4:Parser[c.Expr[String]] = {
-					val Segment:Parser[String] = (
+			val HostP:Parser[ContextTypes[String]#Expr] = {
+				val label:Parser[ContextTypes[String]#Ident] = AlphaNumChar andThen ((AlphaNumChar orElse CodePointIn("-")).repeat() andThen AlphaNumChar).optionally
+				val topLabel:Parser[ContextTypes[String]#Ident] = AlphaChar andThen ((AlphaNumChar orElse CodePointIn("-")).repeat() andThen AlphaNumChar).optionally
+				val LiteralName:Parser[ContextTypes[String]#Expr] = ((label andThen CodePointIn(".")).repeat() andThen topLabel).map(constExpr)
+				val LiteralIpv4:Parser[ContextTypes[String]#Expr] = {
+					val Segment:Parser[ContextTypes[String]#Ident] = (
 						IsString("0").map(_ => "0") orElse
 							(CodePointIn("1") andThen DigitChar.repeat(0,2)) orElse
 							(CodePointIn("2") andThen (

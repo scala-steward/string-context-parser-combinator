@@ -6,19 +6,18 @@ import com.rayrobdod.stringContextParserCombinator.MacroCompat.Context
 
 object Lifted {
 	def apply[Lifter[A], Z](
-		c:Context)(
-		lifterType:Function1[c.Type, c.Type],
-		lift:LiftFunction[c.type, Lifter, Z],
+		lifterType:ContextTypeFunction,
+		lift:LiftFunction[Lifter, Z],
 		description:Failure.Expecting
-	):AbstractParser[c.type, c.Expr[Z]] = {
-		new AbstractParser[c.type, c.Expr[Z]] {
-			def parse(input:Input[c.type]):Result[c.type, c.Expr[Z]] = {
+	):AbstractParser[ContextTypes[Z]#Expr] = {
+		new AbstractParser[ContextTypes[Z]#Expr] {
+			def parse(c:Context)(input:Input[c.type]):Result[c.type, c.Expr[Z]] = {
 				input.consume(
 					_ => None,
 					arg => (Some(arg)
-						.map(x => ((c.inferImplicitValue(lifterType(x.actualType)), x.tree)))
+						.map(x => ((c.inferImplicitValue(lifterType(c)(x.actualType)), x.tree)))
 						.filter(! _._1.isEmpty)
-						.map(x => lift.apply(c.Expr(x._1), c.Expr(x._2)))
+						.map(x => lift.apply(c)(c.Expr(x._1), c.Expr(x._2)))
 					),
 					description
 				)

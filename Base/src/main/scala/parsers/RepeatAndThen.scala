@@ -2,6 +2,7 @@ package com.rayrobdod.stringContextParserCombinator
 package parsers
 
 import scala.collection.immutable.Seq
+import scala.language.higherKinds
 import com.rayrobdod.stringContextParserCombinator.MacroCompat.Context
 
 /**
@@ -15,29 +16,29 @@ import com.rayrobdod.stringContextParserCombinator.MacroCompat.Context
  * repeat accepting one less "1" than before, which then allows the rest of the parser to succeed
  */
 private[parsers]
-final class RepeatAndThen[U <: Context with Singleton, A, AS, B, Z](
-	inner:Parser[U, A],
+final class RepeatAndThen[CA[U <: Context with Singleton], CAS[U <: Context with Singleton], CB[U <: Context with Singleton], CZ[U <: Context with Singleton]](
+	inner:Parser[CA],
 	min:Int,
 	max:Int,
-	evL:Implicits.RepeatTypes[A, AS],
-	rhs:Parser[U, B],
-	evR:Implicits.AndThenTypes[AS, B, Z]
-) extends AbstractParser[U, Z] {
-	def parse(input:Input[U]):Result[U, Z] = {
+	evL:Implicits.RepeatTypes[CA, CAS],
+	rhs:Parser[CB],
+	evR:Implicits.AndThenTypes[CAS, CB, CZ]
+) extends AbstractParser[CZ] {
+	def parse(c:Context)(input:Input[c.type]):Result[c.type, CZ[c.type]] = {
 		var counter:Int = 0
-		val accumulator = evL.init()
-		var remaining:Input[U] = input
+		val accumulator = evL.init(c)
+		var remaining:Input[c.type] = input
 		var continue:Boolean = true
 		var innerExpecting:Failure = null
-		val states = scala.collection.mutable.Stack[Success[U, AS]]()
+		val states = scala.collection.mutable.Stack[Success[c.type, CAS[c.type]]]()
 
-		states.push(Success(evL.result(accumulator), input))
+		states.push(Success(evL.result(c)(accumulator), input))
 		while (continue && counter < max) {
-			inner.parse(remaining) match {
+			inner.parse(c)(remaining) match {
 				case Success(a, r) => {
 					counter += 1
-					evL.append(accumulator, a)
-					states.push(Success(evL.result(accumulator), r))
+					evL.append(c)(accumulator, a)
+					states.push(Success(evL.result(c)(accumulator), r))
 					continue = (remaining != r) // quit if inner seems to be making no progress
 					remaining = r
 				}
@@ -51,9 +52,9 @@ final class RepeatAndThen[U <: Context with Singleton, A, AS, B, Z](
 		var rhsExpecting:Failure = null
 		while (counter >= min && states.nonEmpty) {
 			val top = states.pop()
-			rhs.parse(top.remaining) match {
+			rhs.parse(c)(top.remaining) match {
 				case Success(a, r) => {
-					return Success(evR.aggregate(top.value, a), r)
+					return Success(evR.aggregate(c)(top.value, a), r)
 				}
 				case failure:Failure => {
 					if (rhsExpecting == null) {
@@ -76,15 +77,15 @@ final class RepeatAndThen[U <: Context with Singleton, A, AS, B, Z](
 		}
 	}
 
-	override def andThen[C, Z2](newParser:Parser[U, C])(implicit ev:Implicits.AndThenTypes[Z,C,Z2]):Parser[U, Z2] = {
-		new RepeatAndThen[U, A, AS, (B, C), Z2](
+	override def andThen[CC[U <: Context with Singleton], CZ2[U <: Context with Singleton]](newParser:Parser[CC])(implicit ev:Implicits.AndThenTypes[CZ,CC,CZ2]):Parser[CZ2] = {
+		new RepeatAndThen[CA, CAS, ContextTypesTuple2[CB, CC]#X, CZ2](
 			this.inner,
 			this.min,
 			this.max,
 			this.evL,
-			this.rhs.andThen(newParser)(Implicits.AndThenTypes.andThenGeneric),
-			new Implicits.AndThenTypes[AS, (B, C), Z2] {
-				def aggregate(as:AS, bc:(B, C)):Z2 = ev.aggregate(evR.aggregate(as, bc._1), bc._2)
+			this.rhs.andThen[CC, ContextTypesTuple2[CB, CC]#X](newParser)(Implicits.AndThenTypes.andThenGeneric[CB, CC]),
+			new Implicits.AndThenTypes[CAS, ContextTypesTuple2[CB, CC]#X, CZ2] {
+				def aggregate(c:Context)(as:CAS[c.type], bc:(CB[c.type], CC[c.type])):CZ2[c.type] = ev.aggregate(c)(evR.aggregate(c)(as, bc._1), bc._2)
 			}
 		)
 	}

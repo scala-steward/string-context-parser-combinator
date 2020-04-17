@@ -84,7 +84,7 @@ package object stringContextParserCombinator {
 	 *
 	 * @group macro
 	 */
-	def macroimpl[Z](c:Context)(extensionClassName:String, parser:Parser[c.type, c.Expr[Z]])(args:Seq[c.Expr[Any]]):c.Expr[Z] = {
+	def macroimpl[Z](c:Context)(extensionClassName:String, parser:Parser[ContextTypes[Z]#Expr])(args:Seq[c.Expr[Any]]):c.Expr[Z] = {
 		val ExtensionClassSelectChain = selectChain(c, extensionClassName)
 		val StringContextApply = stringContextApply(c)
 
@@ -101,7 +101,7 @@ package object stringContextParserCombinator {
 
 		val input = new Input[c.type](strings, args.toList)
 
-		parser.parse(input) match {
+		parser.parse(c)(input) match {
 			case Success(res, _) => {
 				//System.out.println(res)
 				res
@@ -121,8 +121,28 @@ package stringContextParserCombinator {
 	/** An object that can be a pattern-match pattern */
 	private[stringContextParserCombinator] trait Extractor[A,Z] {def unapply(a:A):Option[Z]}
 	/** Support for Parsers.Lifted; represents a macro-level function that combines a CC[A] and an A. */
-	trait LiftFunction[U <: Context with Singleton, CC[A], Z] {def apply[A](lifter:U#Expr[CC[A]], elem:U#Expr[A]):U#Expr[Z]}
+	trait LiftFunction[CC[A], Z] {def apply[A](c:Context)(lifter:c.Expr[CC[A]], elem:c.Expr[A]):c.Expr[Z]}
+	trait ContextTypeFunction {def apply(c:Context)(a:c.Type):c.Type}
 
+	trait ContextFunction0[+CZ[U <: Context with Singleton]] {
+		def apply(c:Context):CZ[c.type]
+	}
+	trait ContextFunction1[-CA[U <: Context with Singleton], +CZ[U <: Context with Singleton]] {
+		def apply(c:Context)(a:CA[c.type]):CZ[c.type]
+	}
+
+	sealed trait ContextTypes[A] {
+		type Ident[U <: Context with Singleton] = A
+		type Expr[U <: Context with Singleton] = U#Expr[A]
+		type TypeTag[U <: Context with Singleton] = U#TypeTag[A]
+	}
+	sealed trait ContextTypes2[CA[U <: Context with Singleton]] {
+		type List[U <: Context with Singleton] = scala.collection.immutable.List[CA[U]]
+		type Option[U <: Context with Singleton] = scala.Option[CA[U]]
+	}
+	sealed trait ContextTypesTuple2[CA[U <: Context with Singleton], CB[U <: Context with Singleton]] {
+		type X[U <: Context with Singleton] = (CA[U], CB[U])
+	}
 
 	// CodePoint extending AnyVal, parameterized methods, and using CodePoint::toString results in a
 	// surprisingly high number of NoSuchMethodErrors, at least before 2.12.

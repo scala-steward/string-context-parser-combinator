@@ -3,24 +3,25 @@ package com.rayrobdod.stringContextParserCombinatorExample.datetime
 import java.time._
 import scala.Predef.charWrapper
 import com.rayrobdod.stringContextParserCombinator.{Parsers => scpcParsers, _}
+import com.rayrobdod.stringContextParserCombinator.Parsers._
 import com.rayrobdod.stringContextParserCombinator.MacroCompat.Context
 
 /** Implicit methods to convert things to parsers or to add symbolic methods to parsers */
-trait ParsersImplictly extends scpcParsers {
+trait ParsersImplictly {
 	import scala.language.implicitConversions
-	implicit def str2parser(str:String):Parser[Unit] = this.IsString(str)
-	implicit def type2parser[A](tpe:ctx.TypeTag[A]):Parser[ctx.Expr[A]] = this.OfType(tpe)
+	implicit def str2parser(str:String):Parser[ContextTypes[Unit]#Ident] = scpcParsers.IsString(str)
+	implicit def type2parser[A](tpe:ctx.TypeTag[A]):Parser[ContextTypes[A]#Expr] = scpcParsers.OfType(tpe)
 	implicit def parserWithSymbolic[A](psr:Parser[A]) = new ParserWithSymbolic[ctx.type, A](psr)
 	implicit def str2parserWithSymbolic(str:String) = this.parserWithSymbolic(this.str2parser(str))
-	implicit def type2parserWithSymbolic[A](tpe:ctx.TypeTag[A]) = this.parserWithSymbolic(this.OfType(tpe))
+	implicit def type2parserWithSymbolic[A](tpe:ctx.TypeTag[A]) = this.parserWithSymbolic(this.type2parser(tpe))
 }
 
 /** Adds symbolic methods to Parsers */
-class ParserWithSymbolic[U <: Context with Singleton, A](val backing:Parser[U, A]) extends AnyVal {
-	def ~[B, Z](rhs:Parser[U, B])(implicit ev:Implicits.AndThenTypes[A,B,Z]) = backing.andThen(rhs)(ev)
-	def |[Z >: A](rhs:Parser[U, Z]) = backing.orElse(rhs)
-	def rep[Z](min:Int = 0, max:Int = Integer.MAX_VALUE)(implicit ev:Implicits.RepeatTypes[A, Z]) = backing.repeat(min, max)(ev)
-	def opt[Z](implicit ev:Implicits.OptionallyTypes[A, Z]) = backing.optionally(ev)
+class ParserWithSymbolic[CA[U <: Context with Singleton]](val backing:Parser[CA]) extends AnyVal {
+	def ~[CB[U <: Context with Singleton], CZ[U <: Context with Singleton]](rhs:Parser[CB])(implicit ev:Implicits.AndThenTypes[CA,CB,CZ]) = backing.andThen(rhs)(ev)
+	def |(rhs:Parser[CA]) = backing.orElse(rhs)
+	def rep[CZ[U <: Context with Singleton]](min:Int = 0, max:Int = Integer.MAX_VALUE)(implicit ev:Implicits.RepeatTypes[CA, CZ]) = backing.repeat(min, max)(ev)
+	def opt[CZ[U <: Context with Singleton]](implicit ev:Implicits.OptionallyTypes[CA, CZ]) = backing.optionally(ev)
 }
 
 object MacroImpl {
@@ -36,15 +37,15 @@ object MacroImpl {
 		def result(acc:Acc):Digits = new Digits(acc.value)
 	}
 
-	private[this] trait Parsers extends scpcParsers with ParsersImplictly {
-		val IsDigit:Parser[Digit] = CharIn('0' to '9').map(x => new Digit(x - '0'))
+	private[this] trait Parsers extends ParsersImplictly {
+		val IsDigit:Parser[ContextTypes[Digit]#Ident] = CharIn('0' to '9').map(x => new Digit(x - '0'))
 
 		def Int2Digits(min:Int, max:Int) = (IsDigit.rep(2, 2))
 			.map(_.value)
 			.filter(x => min <= x && x <= max, String.format(""""$1%02d" - "$2%02d"""", Integer.valueOf(min), Integer.valueOf(max)))
 
-		def YearP:Parser[ctx.Expr[Year]] = {
-			val LiteralP:Parser[ctx.Expr[Year]] = {
+		def YearP:Parser[ContextTypes[Year]#Expr] = {
+			val LiteralP:Parser[ContextTypes[Year]#Expr] = {
 				(CharIn("-+").opt ~ IsDigit.rep(1, 9).map(_.value))
 					.map({x => if (x._1 == Some('-')) {-x._2} else {x._2}})
 					.opaque("\"-999999999\"-\"999999999\"")
@@ -55,11 +56,11 @@ object MacroImpl {
 						}
 					)
 			}
-			val VariableP:Parser[ctx.Expr[Year]] = OfType(ctx.typeTag[Year])
+			val VariableP:Parser[ContextTypes[Year]#Expr] = OfType(ctx.typeTag[Year])
 			VariableP | LiteralP
 		}
 
-		def MonthP:Parser[ctx.Expr[Month]] = {
+		def MonthP:Parser[ContextTypes[Month]#Expr] = {
 			def monthOfTree(name:String):ctx.Expr[Month] = {
 				ctx.Expr(
 					ctx.universe.Select(
@@ -76,61 +77,61 @@ object MacroImpl {
 					)
 				)
 			}
-			val LiteralP:Parser[ctx.Expr[Month]] = {
+			val LiteralP:Parser[ContextTypes[Month]#Expr] = {
 				Int2Digits(1, 12)
 					.map(Month.of _)
 					.map(_.name)
 					.map(monthOfTree _)
 			}
-			val VariableP:Parser[ctx.Expr[Month]] = OfType(ctx.typeTag[Month])
+			val VariableP:Parser[ContextTypes[Month]#Expr] = OfType(ctx.typeTag[Month])
 			VariableP | LiteralP
 		}
 
-		def Day31P:Parser[ctx.Expr[Int]] = {
-			val LiteralP:Parser[ctx.Expr[Int]] = {
+		def Day31P:Parser[ContextTypes[Int]#Expr] = {
+			val LiteralP:Parser[ContextTypes[Int]#Expr] = {
 				Int2Digits(1, 31)
 					.map(x => ctx.Expr(ctx.universe.Literal(ctx.universe.Constant(x))))
 			}
 			LiteralP
 		}
 
-		def YearMonthP:Parser[ctx.Expr[YearMonth]] = {
-			val PartsP:Parser[ctx.Expr[YearMonth]] = (YearP ~ "-" ~ MonthP).map(x => {
+		def YearMonthP:Parser[ContextTypes[YearMonth]#Expr] = {
+			val PartsP:Parser[ContextTypes[YearMonth]#Expr] = (YearP ~ "-" ~ MonthP).map(x => {
 				val (y, m) = x
 				ctx.universe.reify(y.splice.atMonth(m.splice))
 			})
-			val VariableP:Parser[ctx.Expr[YearMonth]] = OfType(ctx.typeTag[YearMonth])
+			val VariableP:Parser[ContextTypes[YearMonth]#Expr] = OfType(ctx.typeTag[YearMonth])
 			VariableP | PartsP
 		}
 
-		def LocalDateP:Parser[ctx.Expr[LocalDate]] = {
-			val YearMonthVariantP:Parser[ctx.Expr[LocalDate]] = (YearMonthP ~ "-" ~ Day31P).map(x => {
+		def LocalDateP:Parser[ContextTypes[LocalDate]#Expr] = {
+			val YearMonthVariantP:Parser[ContextTypes[LocalDate]#Expr] = (YearMonthP ~ "-" ~ Day31P).map(x => {
 				val (ym, day) = x
 				ctx.universe.reify(ym.splice.atDay(day.splice))
 			})
-			val VariableP:Parser[ctx.Expr[LocalDate]] = OfType(ctx.typeTag[LocalDate])
+			val VariableP:Parser[ContextTypes[LocalDate]#Expr] = OfType(ctx.typeTag[LocalDate])
 			VariableP | YearMonthVariantP
 		}
 
-		def HourP:Parser[ctx.Expr[Int]] = {
-			val LiteralP:Parser[ctx.Expr[Int]] = {
+		def HourP:Parser[ContextTypes[Int]#Expr] = {
+			val LiteralP:Parser[ContextTypes[Int]#Expr] = {
 				Int2Digits(0, 23)
 					.map(x => ctx.Expr(ctx.universe.Literal(ctx.universe.Constant(x))))
 			}
 			LiteralP
 		}
 
-		def MinuteP:Parser[ctx.Expr[Int]] = {
-			val LiteralP:Parser[ctx.Expr[Int]] = {
+		def MinuteP:Parser[ContextTypes[Int]#Expr] = {
+			val LiteralP:Parser[ContextTypes[Int]#Expr] = {
 				Int2Digits(0, 59)
 					.map(x => ctx.Expr(ctx.universe.Literal(ctx.universe.Constant(x))))
 			}
 			LiteralP
 		}
 
-		def SecondP:Parser[ctx.Expr[Int]] = MinuteP
+		def SecondP:Parser[ContextTypes[Int]#Expr] = MinuteP
 
-		def NanoP:Parser[ctx.Expr[Int]] = {
+		def NanoP:Parser[ContextTypes[Int]#Expr] = {
 			val LiteralP = CharIn('0' to '9').rep(1, 9)
 				.map(x => s"${x}000000000".substring(0, 9))
 				.map(Integer.parseInt _)
@@ -139,8 +140,8 @@ object MacroImpl {
 			LiteralP
 		}
 
-		def LocalTimeP:Parser[ctx.Expr[LocalTime]] = {
-			val LiteralP:Parser[ctx.Expr[LocalTime]] = (HourP ~ ":" ~ MinuteP ~ (":" ~ SecondP ~ ("." ~ NanoP).opt).opt)
+		def LocalTimeP:Parser[ContextTypes[LocalTime]#Expr] = {
+			val LiteralP:Parser[ContextTypes[LocalTime]#Expr] = (HourP ~ ":" ~ MinuteP ~ (":" ~ SecondP ~ ("." ~ NanoP).opt).opt)
 				.map({hmsn =>
 					val constZero = ctx.Expr(ctx.universe.Literal(ctx.universe.Constant(0)))
 					val (hm, sn) = hmsn
@@ -150,11 +151,11 @@ object MacroImpl {
 
 					ctx.universe.reify(java.time.LocalTime.of(hour.splice, minute.splice, second.splice, nano.splice))
 				})
-			val VariableP:Parser[ctx.Expr[LocalTime]] = OfType(ctx.typeTag[LocalTime])
+			val VariableP:Parser[ContextTypes[LocalTime]#Expr] = OfType(ctx.typeTag[LocalTime])
 			VariableP | LiteralP
 		}
 
-		def LocalDateTimeP:Parser[ctx.Expr[LocalDateTime]] = {
+		def LocalDateTimeP:Parser[ContextTypes[LocalDateTime]#Expr] = {
 			(LocalDateP ~ "T" ~ LocalTimeP)
 				.map({dt =>
 					val (date, time) = dt

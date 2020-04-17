@@ -1,23 +1,21 @@
 package com.rayrobdod.stringContextParserCombinator
 
 import org.scalatest.funspec.AnyFunSpec
+import com.rayrobdod.stringContextParserCombinator.Parsers.{CharIn, CodePointIn}
 
 final class ParserTest extends AnyFunSpec {
-	object Parsers extends com.rayrobdod.stringContextParserCombinator.Parsers {
-		val ctx = null
-	}
-	import Parsers.{CharIn, CodePointIn}
+	val ctx:com.rayrobdod.stringContextParserCombinator.MacroCompat.Context = null
 
-	def assertParseFailureMessage(expected:String)(dut:Parser[Parsers.ctx.type, _], inputStr:String):Unit = {
-		val input = new Input[Parsers.ctx.type](List((inputStr, PositionPoint(0))), List())
-		dut.parse(input) match {
+	def assertParseFailureMessage(expected:String)(dut:Parser[ContextTypes[Any]#Ident], inputStr:String):Unit = {
+		val input = new Input[ctx.type](List((inputStr, PositionPoint(0))), List())
+		dut.parse(ctx)(input) match {
 			case _:Success[_,_] => fail("Parse Succeeded")
 			case f:Failure => assertResult(expected)(f.msg)
 		}
 	}
-	def assertParseSuccessValue(expected:Any)(dut:Parser[Parsers.ctx.type, _], inputStr:String):Unit = {
-		val input = new Input[Parsers.ctx.type](List((inputStr, PositionPoint(0))), List())
-		dut.parse(input) match {
+	def assertParseSuccessValue(expected:Any)(dut:Parser[ContextTypes[Any]#Ident], inputStr:String):Unit = {
+		val input = new Input[ctx.type](List((inputStr, PositionPoint(0))), List())
+		dut.parse(ctx)(input) match {
 			case s:Success[_,_] => assertResult(expected)(s.value)
 			case _:Failure => fail("Parse Failed")
 		}
