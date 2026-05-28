@@ -113,10 +113,7 @@ object RepeatedImpl {
 					given Quotes = ctx
 					@nowarn("id=E198") given Type[A] = TypeCreator[A].createType
 					@nowarn("id=E198") given Type[List[A]] = TypeCreator[List[A]].createType
-					value match {
-						case '{ $xs: List[A] } => true
-						case _ => false
-					}
+					value.isExprOf[List[A]]
 				}
 				override def apply(valueCtx: (Expr[Iterable[A]], Quotes)): Expr[List[A]] = {
 					val (value, ctx) = valueCtx
@@ -125,6 +122,7 @@ object RepeatedImpl {
 					@nowarn("id=E198") given Type[List[A]] = TypeCreator[List[A]].createType
 					value match {
 						case '{ $xs: List[A] } => xs
+						case _ => throw new MatchError(value)
 					}
 				}
 				override def applyOrElse[A1 <: (Expr[Iterable[A]], Quotes), B1 >: Expr[List[A]]](valueCtx: A1, default: A1 => B1): B1 = {

@@ -50,6 +50,7 @@ object QuotedFromSplicesUsingBuilderTestImpls {
 		val elems3: Seq[SplicePiece[Expr, Int]] = elems2.map:
 			case '{ $x: Int } => SplicePiece.One[Expr, Int](x)
 			case '{ $xs: Seq[Int] } => SplicePiece.Many[Expr, Int](xs)
+			case unknown => throw new MatchError(unknown)
 
 		val ifZeroDefinedAt2 = ifZeroDefined.valueOrAbort
 		val ifZero = (_:Quotes) => Option.when(ifZeroDefinedAt2)({'{${ifZeroApply}()}})
