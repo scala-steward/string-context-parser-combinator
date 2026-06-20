@@ -46,7 +46,7 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 					(state, stateClasses, _, _) <- states;
 					stateClass <- stateClasses;
 					line <- Seq(
-						s"${themeClass}.icon-button.run-button${stateClass}::before {",
+						s"${themeClass}.icon-button.run-button${stateClass} .fas.fa-${icon}::before {",
 						s"  content: url('../images/fontawesome/${icon}/${theme}/${state}.svg')",
 						"}"
 					)
