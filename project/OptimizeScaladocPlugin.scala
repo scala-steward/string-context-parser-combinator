@@ -10,6 +10,8 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 	object autoImport {
 		val optdocMakeReplacementFontawesomeCss = taskKey[(File, String)]("")
 		val optdocMakeReplacementFontawesomeIcons = taskKey[Seq[(File, String)]]("")
+
+		val optdocMakeReplacementMaterialIcons = taskKey[Seq[(File, String)]]("")
 	}
 	import autoImport._
 
@@ -22,10 +24,93 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 		("selected", Seq(".selected"), "#1A1523", "#EDEDEF"),
 	)
 
+	private def replaceFonts2(outDir: File)(inPath: (File, String)): (File, String) = {
+		import java.io.File.separator
+		if (inPath._2.endsWith(".css")) {
+			val inStr = sbt.IO.read(inPath._1)
+			var str = inStr
+			str = str.replaceAll("""@font-face \{[^\}]+\}""", "");
+			str = str.replaceAll("""font-family: "Open Sans";""", """font-family: "Open Sans", "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "Lato", Arial, sans-serif;""", """font-family: "Lato", "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "Source Code Pro";""", """font-family: "Source Code Pro", "Monaco", "Ubuntu Mono Regular", "Lucida Console", monospace;""");
+
+			if (inStr == str) {
+				inPath
+			} else {
+				val outFile = outDir / inPath._2
+				sbt.IO.write(outFile, str)
+				(outFile -> inPath._2)
+			}
+		} else {
+			inPath
+		}
+	}
+
+	private def replaceMaterialIcons(outDir: File)(inPath: (File, String)): (File, String) = {
+		import java.io.File.separator
+		import java.io.File.separatorChar
+		val rootdirPath = (0 until inPath._2.count(_ == separatorChar)).map(_ => "../").mkString
+		if (inPath._2.endsWith(".html")) {
+			var str = sbt.IO.read(inPath._1)
+			str = str.replaceAll("""<i class="material-icons"></i>""", s"""<i style="display:inline-block;"><img src="${rootdirPath}lib/MaterialIcons/link.svg" alt="Permalink" /></i>""")
+			str = str.replaceAll("""<i id="search-icon" class="material-icons"></i>""", s"""<i id="search-icon">Search: </i>""")
+			str = str.replaceAll("""<i class="material-icons arrow"></i>""", s"""<i class="arrow">Options</i>""")
+			str = str.replaceAll("""<i class="clear material-icons"></i>""", s"""<i class="clear">Clear</i>""")
+
+			val outFile = outDir / inPath._2
+			sbt.IO.write(outFile, str)
+			(outFile -> inPath._2)
+		} else if (inPath._2 == s"lib${separator}index.css") {
+			var str = sbt.IO.read(inPath._1)
+
+			val newLines = Seq(
+				"",
+				"""#textfilter > .input > .clear {""",
+				"""  content: url("MaterialIcons/clear.svg");""",
+				"""}""",
+				"""#textfilter > .input > .clear:hover {""",
+				"""  content: url("MaterialIcons/clear_hover.svg");""",
+				"""}""",
+				"""#search-icon {""",
+				"""  content: url("MaterialIcons/search.svg");""",
+				"""}""",
+			)
+			str += newLines.mkString("\n")
+
+			val outFile = outDir / inPath._2
+			sbt.IO.write(outFile, str)
+			(outFile -> inPath._2)
+		} else if (inPath._2 == s"lib${separator}template.css") {
+			var str = sbt.IO.read(inPath._1)
+
+			val newLines = Seq(
+				"",
+				"""#memberfilter > i.arrow {""",
+				"""  content: url("MaterialIcons/play_arrow.svg");""",
+				"""}""",
+			)
+			str += newLines.mkString("\n")
+
+			val outFile = outDir / inPath._2
+			sbt.IO.write(outFile, str)
+			(outFile -> inPath._2)
+		} else if (inPath._2 == s"lib${separator}diagrams.css") {
+			var str = sbt.IO.read(inPath._1)
+
+			str = str.replaceAll("""\.material-icons \{[^\}]+\}""", "");
+
+			val outFile = outDir / inPath._2
+			sbt.IO.write(outFile, str)
+			(outFile -> inPath._2)
+		} else {
+			inPath
+		}
+	}
+
 	private def unscopedSettings = Seq(
 		optdocMakeReplacementFontawesomeCss := {
-			sbt.IO.createDirectory(target.value / "docopt")
-			val outFile = target.value / "docopt" / "fontawesome.css"
+			sbt.IO.createDirectory(target.value / "optdoc")
+			val outFile = target.value / "optdoc" / "fontawesome.css"
 			val clockLines = {
 				val icon = "clock"
 				for {
@@ -57,7 +142,7 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 			outFile -> "styles/fontawesome.css"
 		},
 		optdocMakeReplacementFontawesomeIcons := {
-			val outDir = target.value / "docopt" / "icons"
+			val outDir = target.value / "optdoc" / "icons-fa"
 			sbt.IO.createDirectory(outDir)
 
 			for {
@@ -85,6 +170,43 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 				outFile -> s"images/fontawesome/${icon}/${theme}/${state}.svg"
 			}
 		},
+
+		optdocMakeReplacementMaterialIcons := {
+			val outDir = target.value / "optdoc" / "icons-mat"
+			for {
+				icon <- Seq("link", "search", "play_arrow", "clear", "clear_hover")
+			} yield {
+				val stroke = icon match {
+					case "link" => """<path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm-3-4h8v2H8z"/>"""
+					case "search" => """<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>"""
+					case "play_arrow" => """<path d="M8 5v14l11-7L8 5z"/>"""
+					case "clear" | "clear_hover" => """<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>"""
+				}
+				val color = icon match {
+					case "link" | "play_arrow" | "clear_hover" => "#FFFFFF"
+					case "search" | "clear" => "rgba(255,255,255, 0.4)"
+				}
+				val size = icon match {
+					case "link" | "search" => "24px"
+					case "play_arrow" => "20px"
+					case "clear" | "clear_hover" => "16px"
+				}
+
+				val lines = Seq(
+					s"""<svg xmlns="http://www.w3.org/2000/svg" height="$size" viewBox="0 0 24 24" width="$size" fill="$color">""",
+					"""<!-- Material Icons""",
+					"""https://fonts.google.com/icons?icon.set=Material+Icons""",
+					"""License - https://www.apache.org/licenses/LICENSE-2.0""",
+					"""-->""",
+					"""<path d="M0 0h24v24H0V0z" fill="none"/>""",
+					stroke,
+					"""</svg>"""
+				)
+				val outFile = outDir / s"MaterialIcons-$icon.svg"
+				sbt.io.IO.writeLines(outFile, lines)
+				outFile -> s"lib/MaterialIcons/${icon}.svg"
+			}
+		}
 	)
 
 	private def perScopeSettings(config:sbt.librarymanagement.Configuration) = Seq(
@@ -105,6 +227,20 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 						})
 						.:+(optdocMakeReplacementFontawesomeCss.value)
 						.++(optdocMakeReplacementFontawesomeIcons.value)
+				case "2.12" | "2.13" =>
+					(config / packageDoc / mappings).value
+						.filterNot({filePath =>
+							import java.io.File.separator
+							val path = filePath._2
+							path.startsWith(s"lib${separator}lato-") ||
+							path.startsWith(s"lib${separator}open-sans-") ||
+							path.startsWith(s"lib${separator}source-code-pro-") ||
+							path.startsWith(s"lib${separator}MaterialIcons-") ||
+							false
+						})
+						.++(optdocMakeReplacementMaterialIcons.value)
+						.map(replaceMaterialIcons(target.value / "optdoc" / "replaceIcons2"))
+						.map(replaceFonts2(target.value / "optdoc" / "replaceFonts2"))
 				case _ =>
 					(config / packageDoc / mappings).value
 			}
