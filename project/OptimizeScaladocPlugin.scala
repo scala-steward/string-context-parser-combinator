@@ -46,6 +46,31 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 		}
 	}
 
+	private def replaceFonts3(outDir: File)(inPath: (File, String)): (File, String) = {
+		import java.io.File.separator
+		if (inPath._2.endsWith(".css")) {
+			val inStr = sbt.IO.read(inPath._1)
+			var str = inStr
+			str = str.replaceAll("""@font-face \{[^\}]+\}""", "");
+			str = str.replaceAll("""font-family: "Inter-Bold", sans-serif;""", """font-weight: bold; font-family: "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "Inter-SemiBold", sans-serif;""", """font-weight: bold; font-family: "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "Inter-Medium", sans-serif;""", """font-family: "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "Inter-Regular", sans-serif;""", """font-family: "DejaVu Sans", Arial, Helvetica, sans-serif;""");
+			str = str.replaceAll("""font-family: "FiraCode-Regular", monospace;""", """font-family: "FiraCode-Regular", "Monaco", "Ubuntu Mono Regular", "Lucida Console", monospace;""");
+			str = str.replaceAll("""font-family: "FiraCode-Regular";""", """font-family: "FiraCode-Regular", "Monaco", "Ubuntu Mono Regular", "Lucida Console", monospace;""");
+
+			if (inStr == str) {
+				inPath
+			} else {
+				val outFile = outDir / inPath._2
+				sbt.IO.write(outFile, str)
+				(outFile -> inPath._2)
+			}
+		} else {
+			inPath
+		}
+	}
+
 	private def replaceMaterialIcons(outDir: File)(inPath: (File, String)): (File, String) = {
 		import java.io.File.separator
 		import java.io.File.separatorChar
@@ -223,8 +248,11 @@ object OptimizeScaladocPlugin extends AutoPlugin {
 							path.startsWith(s"images${separator}gitter-icon-") ||
 							path.startsWith(s"styles${separator}fontawesome.css") ||
 							path.startsWith(s"webfonts${separator}fa-") ||
+							path.startsWith(s"fonts${separator}Inter-") ||
+							path.startsWith(s"fonts${separator}FiraCode-") ||
 							false
 						})
+						.map(replaceFonts3(target.value / "optdoc" / "replaceFonts3"))
 						.:+(optdocMakeReplacementFontawesomeCss.value)
 						.++(optdocMakeReplacementFontawesomeIcons.value)
 				case "2.12" | "2.13" =>
