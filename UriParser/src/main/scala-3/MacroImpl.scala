@@ -154,7 +154,7 @@ object MacroImpl {
 									('{new scala.collection.mutable.StringBuilder})
 									({(builder, part) => part(builder)})
 							}
-								.result
+								.result()
 						}
 					}
 				}

@@ -176,7 +176,6 @@ final class Extractor[Ctx, Expr[+_], Type[_], -A] private[stringContextParserCom
 		equalExprBool: scala.quoted.Expr[Boolean] =:= Expr[Boolean],
 		equalTypBool: TypeCreator[Boolean] =:= Type[Boolean],
 	): scala.quoted.Expr[Unapply[UnexprA]] = {
-		import scala.quoted.{Expr => _, quotes => _, _}
 		import quotes.reflect.asTerm
 		import PositionGivens.given
 

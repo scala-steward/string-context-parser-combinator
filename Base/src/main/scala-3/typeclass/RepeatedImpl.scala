@@ -29,7 +29,7 @@ object RepeatedImpl {
 								('{new scala.collection.mutable.StringBuilder})
 								({(part, builder) => '{$builder.append($part)}})
 						}
-							.result
+							.result()
 					}
 			}
 		}
