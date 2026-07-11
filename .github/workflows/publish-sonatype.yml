@@ -5,6 +5,7 @@ on:
     tags: ["*"]
 jobs:
   publish:
+    if: github.repository == 'rayrobdod/string-context-parser-combinator'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
